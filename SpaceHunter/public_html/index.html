@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style>
+            * { padding: 0; margin: 0; }
+            #canvas-id { background: #eee; display: block; margin: 20px 20px 20px; border: 1px solid black; }
+            #game-info { display: inline-block; float: left; width:250px; margin-right: 20px; margin-left: 10px; border: 1px solid black; }
+            .menu-row { margin: 3px auto; text-align: center; }
+            .data { color: blue; }
+        </style>
+    </head>    
+    <body onload="init()">
+    <div id=game-info>
+        <div id="scores-board">
+            <p class="menu-row">Scores</p>
+            <p id="scores" class="menu-row data"></p>
+        </div>
+        <div>
+            <p class="menu-row">Health</p>
+            <p id="health" class="menu-row data"></p>
+        </div>
+        <div>
+            <p class="menu-row">Weapon</p>
+            <p id="weapon" class="menu-row data"></p>
+        </div>
+        <div>
+            <p class="menu-row">Ammo</p>
+            <p id="ammo" class="menu-row data"></p>
+        </div>
+    </div>
+        <canvas id="canvas-id" width="860" height="768"></canvas>
+
+    <script>
+        // game namespace
+        var spaceships = {
+            loop: 
+                function(callback) {
+                    spaceships.loop.timeout = setTimeout(callback, 1000/50);
+                }
+        };
+
+        // all field data for canvas and menu
+        spaceships.field = {
+            canvas: document.getElementById("canvas-id"),
+
+            scores: document.getElementById("scores"),
+
+            health: document.getElementById("health"),
+
+            weapon: document.getElementById("weapon"),
+
+            ammo: document.getElementById("ammo"),
+
+            spawnDelay: 20,
+
+            randomGenerator: 
+                function (start, end) {
+                    return Math.floor((Math.random()*(end - start + 1)) + start);
+                },
+                
+            shipImage: new Image(),
+            
+            spriteAsteroid: new Image(),
+            
+            spriteEnemy: new Image()               
+        };
+
+        spaceships.field.context = spaceships.field.canvas.getContext("2d");
+
+        // game components icluding weapons, units, extras               
+        spaceships.components = {
+            pressedKey: [],
+
+            unit: function (x, y, width, height, speedX, speedY, health, weaponType, actionKey) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+                this.speedX = speedX;
+                this.speedY = speedY;
+                this.health = health;
+                this.weaponType = weaponType;
+                this.actionKey = actionKey;
+                this.ammo = "unlimited";
+
+                this.scores = 0;
+                this.keyUpState = true;
+
+                actionKeyReleased = true;
+                switch(this.weaponType) {
+                    case "no":
+                        break;
+                    case "projectile":                                             
+                        this.weapon = new spaceships.components._weapon(3, 4, 0, 6, 20);
+                        break;          
+                    case "rockets":
+                        this.ammo = 100;
+                        this.weapon = new spaceships.components._weapon(4, 6, 0, 5, 40);
+                        break;
+                    case "self-guided":
+                        this.ammo = 50;
+                        this.weapon = new spaceships.components._weapon(4, 6, 4, 4, 30);
+                        break;
+                    case "laser":
+                        this.ammo = 200;
+                        this.weapon = new spaceships.components._weapon(2, 12, 0, 6, 50);
+                        break;
+                    default:
+                        console.log("No such weapon");
+                }
+            },
+
+            _weapon: function (width, height, speedX, speedY, damage) {
+                this.width = width;
+                this.height = height;
+                this.speedX = speedX;
+                this.speedY = speedY;
+                this.damage = damage;
+            },
+
+            consumables: function (effect, value) {               
+                this.effect = effect;
+                this.value = value;
+                this.width = 10;
+                this.height = 10;
+                this.speedY = 4;
+            },
+
+            enemies: [],
+
+            playerWeapons: [],
+
+            enemyWeapons: [],
+
+            consumablesArr: [],
+            
+            spawnEntities:
+                function() {
+                   // get new random spawn timing
+                   spaceships.field.spawnDelay = spaceships.field.randomGenerator(30, 80);
+
+                   // spawn new random number of enemies 
+                   var spawnEnemies = spaceships.field.randomGenerator(2, 5);
+                   for(var i = 0; i < spawnEnemies; i++) {
+                       var randX = spaceships.field.randomGenerator(0, 980);       
+                       var randHealth = spaceships.field.randomGenerator(20,120);
+                       var randSpeedY = spaceships.field.randomGenerator(1, 4);
+                       var randWidth = spaceships.field.randomGenerator(20, 40);
+                       var newEnemy = new spaceships.components.unit(randX, 0, randWidth, 30, 2, randSpeedY, randHealth, "no");
+                       spaceships.components.enemies.push(newEnemy);
+                   }
+                }
+        };
+
+        // main game logic
+        spaceships.engine = {
+            draw: 
+                function () {
+                    // clear the canvas
+                    spaceships.field.context.clearRect(0,0, spaceships.field.canvas.width, spaceships.field.canvas.height);
+
+                    // shorten the context referral
+                    var ctx = spaceships.field.context;
+
+                    // draw the player
+                    //ctx.fillStyle = "yellow";
+                    ctx.drawImage(spaceships.field.shipImage, player.x, player.y, player.width, player.height);
+
+                    // draw the enemies
+                    
+                    spaceships.components.enemies.forEach(function (enemy) {
+                        ctx.drawImage(spaceships.field.spriteEnemy, 5, 5, 50, 50, enemy.x, enemy.y, enemy.width, enemy.height);          
+                    });
+
+                    // draw player bullets
+                    spaceships.components.playerWeapons.forEach(function (weapon) {
+                        ctx.fillRect(weapon.x, weapon.y, weapon.width, weapon.height);
+                    });
+
+                    // call the update
+                    spaceships.engine.update();                   
+                },
+
+            update: 
+                function () {
+                    // shorten the canvas referral
+                    var cnv = spaceships.field.canvas;
+
+                    // track when to spawn new enemies
+                    spaceships.field.spawnDelay -= 1;
+
+                    // if it is time to respawn execute the code
+                    if(spaceships.field.spawnDelay === 0) {
+                        spaceships.components.spawnEntities();
+                    }
+
+                    // pressed key events for moving the player
+                    if(spaceships.components.pressedKey[87] === 1) {
+                        if(player.y > 0) {
+                            player.y = player.y - player.speedY;
+                        }                   
+                    }              
+                    if(spaceships.components.pressedKey[65] === 1) {
+                        if(player.x > 0) {
+                            player.x = player.x - player.speedX;
+                        }
+                    } 
+                    if(spaceships.components.pressedKey[83] === 1) {
+                        if(player.y < cnv.height - player.height) {
+                            player.y = player.y + player.speedY;
+                        }
+                    } 
+                    if(spaceships.components.pressedKey[68] === 1) {  
+                        if(player.x < cnv.width - player.width) {
+                            player.x = player.x + player.speedX;
+                        }
+                    }
+
+                    // fire the player weapon
+                    if(spaceships.components.pressedKey[player.actionKey] === 0 ) {
+                        player.keyUpState = true;
+                    }
+
+                    // track the current weapon's ammo 
+                    if(spaceships.components.pressedKey[player.actionKey] === 1 && player.keyUpState === true) {  
+                        var bullet = JSON.parse(JSON.stringify(player.weapon));
+                        // generate the "bullet" in the middle of the player top
+                        bullet.x = player.x + player.width/2 - 2;
+                        bullet.y = player.y;
+
+                        // if the weapon is not basic type do this code
+                        if(player.ammo !== "unlimited") {
+                            player.ammo -= 1;
+
+                            // if the ammo is out, switch to basic weapon
+                            if(player.ammo <= 0) {
+                                player.weaponType = "projectile";
+                                player.weapon = new spaceships.components._weapon(3, 4, 0, 6, 20);
+                                player.ammo = "unlimited";
+                            }
+                        }
+
+                        // add each fired bullet to the array of the player
+                        spaceships.components.playerWeapons.push(bullet);
+
+                        // control the fire button /avoid constant firing on button hold/
+                        player.keyUpState = false;
+                    }
+
+                    // update enemies and possible collision with the player
+                    spaceships.components.enemies.forEach(function (enemy) {
+                        enemy.y = enemy.y + enemy.speedY;
+
+                        if(enemy.health > 0) {
+                            if(spaceships.engine.collision(enemy, player)) {
+                                player.health -= enemy.health;
+                                // prepare the collided enemy for deletion
+                                enemy.health = 0;
+
+                                // game over event
+                                if(player.health <= 0) {
+                                    console.log("boooom");
+                                    clearTimeout(spaceships.loop.timeout);
+                                    spaceships.loop.timeout = 0;
+                                    spaceships.field.context.clearRect(0,0, spaceships.field.canvas.width, spaceships.field.canvas.height);
+                                    spaceships.field.context.fillStyle = "red";
+                                    spaceships.field.context.font = "80px Arial";
+                                    spaceships.field.context.textAlign = "center";
+                                    spaceships.field.context.fillText("GAME OVER", cnv.width/2, cnv.height/2);
+                                }
+                            }
+                        }                   
+                    });
+
+                    // make temp arrays to remove the destroyed/gone bullets/enemies
+                    var tempPlayerWeapons = spaceships.components.playerWeapons;
+                    spaceships.components.playerWeapons = [];
+                    var tempEnemies = spaceships.components.enemies;
+                    spaceships.components.enemies = [];
+
+                    // update player "bullets" state and collision with enemies
+                    tempPlayerWeapons.forEach(function (bullet) {    
+                        bullet.y = bullet.y - bullet.speedY;
+
+                        tempEnemies.forEach(function (enemy) {                        
+                            if(spaceships.engine.collision(bullet, enemy)) {
+                                enemy.health -= bullet.damage; 
+                                player.scores += bullet.damage;
+                                bullet.damage = 0;
+                            }                     
+                        });
+
+                        // put back in the array only the "live" bullets
+                        if(bullet.y > 0 - bullet.height && bullet.damage !== 0) {
+                            spaceships.components.playerWeapons.push(bullet);
+                        }                 
+                    });          
+
+                    // remove destroyed/lost enemies
+                    tempEnemies.forEach(function (enemy) {
+                        if(enemy.health > 0 && enemy.y <= cnv.height) {
+                            spaceships.components.enemies.push(enemy);
+                        } 
+                        if (enemy.health === 0) {
+                            player.scores += 50;
+                        }
+                    });
+
+                    //update menu board
+                    spaceships.field.scores.innerHTML = (player.scores);
+                    spaceships.field.health.innerHTML = (player.health);
+                    spaceships.field.weapon.innerHTML = (player.weaponType);
+                    spaceships.field.ammo.innerHTML = (player.ammo);
+                },
+
+            collision:
+                function (bullet, unit) {
+                    if(bullet.x + bullet.width >= unit.x && bullet.x <= unit.x + unit.width && 
+                       bullet.y + bullet.height >= unit.y && bullet.y <= unit.y + unit.height) {
+                        return true;
+                    } else {
+                        return false;
+                    }               
+                },              
+        }; 
+
+        // create the pressed key array to follow key up and key down events
+        for(var i = 0; i <= 256; i++) {
+            spaceships.components.pressedKey.push(0);
+        }
+
+        // create the player
+        var player = new spaceships.components.unit(480, 600, 40, 70, 2, 2, 100, "laser", 32);       
+
+        // starting point for the game
+        function init () {              
+            // event listeners
+            window.addEventListener("keydown", function(e) {
+                spaceships.components.pressedKey[e.keyCode] = 1;
+            });
+
+            window.addEventListener("keyup", function(e) {
+                spaceships.components.pressedKey[e.keyCode]=0;
+            });
+            
+            spaceships.field.shipImage.src = 'img/ship.gif',              
+            spaceships.field.spriteAsteroid.src = 'img/asteroid3.png',
+            spaceships.field.spriteEnemy.src = 'img/RoboChopper.png'
+
+            // start the game loop
+            spaceships.loop(init);
+
+            // enter the game
+            spaceships.engine.draw();                          
+        }
+    </script>
+    </body>
+</html>
