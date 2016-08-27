@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Space Hunter</title>
+        <link rel="stylesheet" type="text/css" href="css/main.css">
+    </head>    
+    <body>
+        <div id=game-info>
+            <div id="scores-board">
+                <p class="menu-row">Scores</p>
+                <p id="scores" class="menu-row data"></p>
+            </div>
+            <div>
+                <p class="menu-row">Health</p>
+                <p id="health" class="menu-row data"></p>
+            </div>
+            <div>
+                <p class="menu-row">Weapon</p>
+                <p id="weapon" class="menu-row data"></p>
+            </div>
+            <div>
+                <p class="menu-row">Ammo</p>
+                <p id="ammo" class="menu-row data"></p>
+            </div>
+        </div>
+        <canvas id="canvas-id" width="860" height="768"></canvas>
+        <script src="js/game.js"></script>
+        <script src="js/gameField.js"></script>
+        <script src="js/components.js"></script>
+        <script src="js/engine.js"></script>
+        <script>       
+            window.onload = function() {               
+                spaceships.player = new spaceships.components.unit(480, 600, 40, 70, 2, 2, 100, "laser", 32);
+                
+                spaceships.game.startGame();
+            }
+        </script>
+    </body>
+</html>
